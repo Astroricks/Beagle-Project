@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Button Box Joystick</title>
+
+    <script src="/json.js"></script> <!-- for ie -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <link href="layout.css" rel="stylesheet" type="text/css">
+    <script src="jquery.js"></script>
+    <script src="jquery.flot.js"></script>
+    <script src="jquery.flot.navigate.js"></script>
+  </head>
+  <body>
+    <h1>Button Box Joystick <a href="http://Rose-Hulman.edu" target="_blank">
+        <img src="RoseLogo96.png" width=200 style="float:right"></a></h1>
+    <button id="connect" onClick='connect()'/>Connect</button>
+    <button id="disconnect" onClick='disconnect()'>Disconnect</button>
+    <span style="position:relative; left:150px">
+    Analog_Y: <input id="ainNum_y" type="text" value="" style="text-align: right; width:2em">
+    Analog_X: <input id="ainNum_x" type="text" value="" style="text-align: right; width:2em">
+    </span>
+<table>
+<tr>
+    <td><div id="plotTop" style="width:550px;height:150px;"></div>
+<center>samples</center></td>
+</tr>
+<tr>
+    <td><div id="plotBot" style="width:550px;height:150px;"></div>
+<center>samples</center></td>
+</tr>
+</table>
+
+    <a href="http://beagleboard.org" target="_blank">
+        <img src="beagle-hd-logo.gif" width=200 align="right"></a>
+    <div><p id="status">Waiting for input</p></div>
+
+
+<br/>
+
+    <script>
+
+    var socket;
+    var firstconnect = true,
+        fs = 8000,
+        Ts = 1/fs*1000,
+        samples = 100,
+        plotTop,
+        plotBot,
+        ainData_y = [],  iain_y = 0,
+	ainData_x = [],  iain_x = 0, 
+        ainNum_y  = 6;
+	ainNum_x  = 4;
+	ainData_y[samples] = 0;
+	ainData_x[samples] = 0;
+
+    function connect() {
+      if(firstconnect) {
+        socket = io.connect(null);
+
+        socket.on('message', function(data)
+            { status_update("Received: message");});
+        socket.on('connect', function()
+            { status_update("Connected to Server"); });
+        socket.on('disconnect', function()
+            { status_update("Disconnected from Server"); });
+        socket.on('reconnect', function()
+            { status_update("Reconnected to Server"); });
+        socket.on('reconnecting', function( nextRetry )
+            { status_update("Reconnecting in " + nextRetry/1000 + " s"); });
+        socket.on('reconnect_failed', function()
+            { message("Reconnect Failed"); });
+
+        socket.on('ain_y', ain_y);
+        socket.on('ain_x', ain_x);
+//        socket.on('i2c',  i2c);
+
+        firstconnect = false;
+      }
+      else {
+        socket.socket.reconnect();
+      }
+    }
+
+    function disconnect() {
+      socket.disconnect();
+    }
+
+    // When new data arrived, convert it and plot it.
+    function ain_y(data) {
+        data = atob(data)/4096 * 1.8;
+        data = isNaN(data) ? 0 : data;
+//        status_update("ain_y: " + data);
+        ainData_y[iain_y] = [iain_y, data];
+        iain_y++;
+        if(iain_y >= samples) {
+            iain_y = 0;
+            ainData_y = [];
+        }
+        plotTop.setData([ ainData_y ]);
+        plotTop.draw();
+    }
+
+    function ain_x(data) {
+        data = atob(data)/4096 * 1.8;
+        data = isNaN(data) ? 0 : data;
+//        status_update("ain_x: " + data);
+        ainData_x[iain_x] = [iain_x, data];
+        iain_x++;
+        if(iain_x >= samples) {
+            iain_x = 0;
+            ainData_x = [];
+        }
+        plotBot.setData([ ainData_x ]);
+        plotBot.draw();
+    }
+
+    function status_update(txt){
+      document.getElementById('status').innerHTML = txt;
+    }
+
+    connect();
+
+$(function () {
+
+    function initPlotData() {
+        // zip the generated y values with the x values
+        var result = [];
+        for (var i = 0; i <= samples; i++)
+            result[i] = [i, 0];
+        return result;
+    }
+
+    // setup control widget
+    $("#ainNum_y").val(ainNum_y).change(function () {
+        ainNum_y = $(this).val();
+    });
+
+    $("#ainNum_x").val(ainNum_x).change(function () {
+        ainNum_x = $(this).val();
+    });
+
+    // setup plot
+    var optionsTop = {
+        series: { 
+            shadowSize: 0, // drawing is faster without shadows
+            points: { show: false},
+            lines:  { show: true, lineWidth: 5},
+        }, 
+        yaxis:	{ min: 0, max: 2, 
+                  zoomRange: [10, 256], panRange: [-128, 128] },
+        xaxis:	{ show: true, 
+                  zoomRange: [10, 100], panRange: [0, 100] },
+        legend:	{ position: "sw" },
+        zoom:	{ interactive: true, amount: 1.1 },
+        pan:	{ interactive: true }
+    };
+    plotTop = $.plot($("#plotTop"), 
+        [ 
+          { data:  initPlotData(), 
+            label: "Y Axis Analog In" },
+        ],
+            optionsTop);
+
+    var optionsBot = {
+        series: { 
+            shadowSize: 0, // drawing is faster without shadows
+            points: { show: false},
+            lines:  { show: true, lineWidth: 5},
+            color: 2
+        }, 
+        yaxis:	{ min: 0, max: 2, 
+                  zoomRange: [10, 256], panRange: [-128, 128] },
+        xaxis:	{ show: true, 
+                  zoomRange: [10, 100], panRange: [0, 100] },
+        legend:	{ position: "sw" },
+        zoom:	{ interactive: true, amount: 1.1 },
+        pan:	{ interactive: true }
+    };
+    plotBot = $.plot($("#plotBot"), 
+        [ 
+          { data:  initPlotData(),
+            label: "X Axis Analog In"}
+        ],
+            optionsBot);
+
+});
+</script>
+
+  </body>
+</html>
