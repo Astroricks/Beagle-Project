@@ -224,7 +224,7 @@ int main(int argc, char *argv[]){
 		PT1_now = analogIn(PT1);
 		delay(100);
 		PT2_now = analogIn(PT2);	
-		if (PT1_now - PT2_now < 100 && PT1_now - PT2_now > -100){
+		if (PT1_now - PT2_now < 150 && PT1_now - PT2_now > -150){
 			delay(300);
 		}	
 		else if (PT1_now > PT2_now){
