@@ -112,6 +112,7 @@ void delay (unsigned int loops)
 * Clockwise Rotate
 ****************************************************************/
 void cRotate (int *pos){
+	//Use a 4 state position to decide how to rotate
 	switch (*pos){
 		case 0:
 			gpio_set_value(controller[0], 0);
@@ -145,6 +146,7 @@ void cRotate (int *pos){
 * Counter Clockwise Rotate
 ****************************************************************/
 void ccRotate (int *pos){
+	//Use a 4 state position to decide how to rotate
 	switch (*pos){
 		case 0:
 			gpio_set_value(controller[0], 1);
@@ -194,6 +196,7 @@ int main(int argc, char *argv[]){
 	cRotate(&pos);
 	cRotate(&pos);
 
+	//Clockwise rotate for a cycle and record the value in different directions
 	for(i = 0; i < 20; i++) {
 		PT1_val[i] = analogIn(PT1);
 		PT2_val[i] = analogIn(PT2);
@@ -206,27 +209,32 @@ int main(int argc, char *argv[]){
 		PT_sum[i] = PT1_val[i] + PT2_val[i];
 	}
 
-	min = 50000;
-	for(i = 0; i < 20; i++)
+	min = 50000;	//Initialize a large number as min to garantee to be replaced later
+	//Find the direction with minimum value, which has the strongest light	
+	for(i = 0; i < 20; i++)		
 		if(PT_sum[i] < min) {
 			min = PT_sum[i];
 			minPos = i;
 		}
 	printf("min:%d minPos:%d\n", min, minPos);
 
+	//Counter clockwise rotate to the direction with strongest light
 	for(i = 19; i >= 0; i--) {
 		ccRotate(&pos);
 		delay(100);
 		if((i-minPos) == 0) break;
 	}
 
+	//Tracking mode. Find the strongest light and rotate to its direction
 	while(keepgoing){
+		//Read analog inputs
 		PT1_now = analogIn(PT1);
-		delay(100);
-		PT2_now = analogIn(PT2);	
+		PT2_now = analogIn(PT2);
+		//Set a threshold. If the difference between the phototransistors is too small, we will not rotate	
 		if (PT1_now - PT2_now < 150 && PT1_now - PT2_now > -150){
 			delay(300);
-		}	
+		}
+		//Decide which direction to rotate
 		else if (PT1_now > PT2_now){
 			cRotate(&pos);
 		}		

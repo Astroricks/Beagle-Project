@@ -42,7 +42,7 @@
 #define     BLOCKSIZE        48000
 
 //* Number of buffers used
-#define	    BUFFERNUM	     5
+#define	    BUFFERNUM	     50
 
 
 //*******************************************************************************
@@ -154,10 +154,10 @@ for(k=0;k<BUFFERNUM;k++)
 // **************************************************
     // Get things started by sending some silent buffers out.
     int i;
-for(k=0;k<BUFFERNUM;k++)
-{
-    memset(outputBuffer[k], 0, blksize);		// Clear the buffer
-}
+    for(k=0;k<BUFFERNUM;k++)
+    {
+        memset(outputBuffer[k], 0, blksize);		// Clear the buffer
+    }
     memset(voidBuffer, 0, blksize);
     for(i=0; i<2; i++) {
 	if ((snd_pcm_writei(pcm_output_handle, outputBuffer[0],
@@ -176,8 +176,10 @@ for(k=0;k<BUFFERNUM;k++)
     int count = 0;
     int d = 0;
 //    while( !envPtr->quit )
-for(k=1;k<BUFFERNUM;k++)
-{
+
+    //Record the audio into the buffers for playing out later
+    for(k=1;k<BUFFERNUM;k++)
+    {
         if (snd_pcm_readi(pcm_capture_handle, outputBuffer[k], blksize/BYTESPERFRAME) < 0)
 	{
 	    snd_pcm_prepare(pcm_capture_handle);
@@ -185,18 +187,18 @@ for(k=1;k<BUFFERNUM;k++)
             status = AUDIO_THREAD_FAILURE;
             goto cleanup;
 	}
-
+	//Send void buffers to output to avoid buffer underrun
 	if ((snd_pcm_writei(pcm_output_handle, voidBuffer,blksize/BYTESPERFRAME)) < 0) {
 	    snd_pcm_prepare(pcm_output_handle);
 	    ERR( "<<<Void Buffer Underrun >>> \n");
 	}
 
-}
+    }
 
-int aaa;
-for(aaa=0;aaa<200/BUFFERNUM;aaa++)
-for(k=0;k<BUFFERNUM;k++)
-{
+    //Output the processed audio
+    for(k=0;k<BUFFERNUM;k++)
+    {
+	//Read the playing audio into buffer
 	if (snd_pcm_readi(pcm_capture_handle, outputBuffer[k], blksize/BYTESPERFRAME) < 0)
 	{
 	    snd_pcm_prepare(pcm_capture_handle);
@@ -205,11 +207,12 @@ for(k=0;k<BUFFERNUM;k++)
             goto cleanup;
 	}
 
+	//outputBuffer[k+1] is the delayed buffer
 	d = k+1;
 	if(d>=BUFFERNUM)	
 		d = 0;
 
-
+	//Add the current buffer and delayed buffer together to make a reverbration effect. Just got some noise though.
 	for(i=0;i<blksize;i=i+2){
 		int16_t s1 = outputBuffer[k][i]<<8 | (unsigned char)outputBuffer[k][i+1];
 		int16_t s2 = outputBuffer[d][i]<<8 | (unsigned char)outputBuffer[d][i+1];
@@ -221,7 +224,6 @@ for(k=0;k<BUFFERNUM;k++)
 	}
 
 	DBG("%X ", outputBuffer[k][0]);
-//	DBG("%X%X %X%X, %X%X %X%X\n", outputBuffer[k][0], outputBuffer[k][1], outputBuffer[k][2], outputBuffer[k][3], outputBuffer[k][4], outputBuffer[k][5], outputBuffer[k][6], outputBuffer[k][7]);
 
         // Write output buffer into ALSA output device
         while (snd_pcm_writei(pcm_output_handle, outputBuffer[k], blksize/BYTESPERFRAME) < 0) 
@@ -235,7 +237,7 @@ for(k=0;k<BUFFERNUM;k++)
 	DBG("%d, ", count++);
 //	DBG("%X%X %X%X, %X%X %X%X\n", outputBuffer[k][0], outputBuffer[k][1], outputBuffer[k][2], outputBuffer[k][3], outputBuffer[k][4], outputBuffer[k][5], outputBuffer[k][6], outputBuffer[k][7]);
 //	DBG("\n");
-}
+    }
     DBG("\n");
 
     DBG( "Exited audio_thread_fxn processing loop\n" );
@@ -267,11 +269,11 @@ cleanup:
     // Free output buffer
     if( initMask & OUTPUT_BUFFER_ALLOCATED )
     {
-for(k=0;k<BUFFERNUM;k++)
-{
-        free( outputBuffer[k] );
-        DBG( "Freed audio output buffer at location %p\n", outputBuffer[k] );
-}
+	for(k=0;k<BUFFERNUM;k++)
+   	{
+        	free( outputBuffer[k] );
+        	DBG( "Freed audio output buffer at location %p\n", outputBuffer[k] );
+    	}
     }
 
     // Return from audio_thread_fxn function
