@@ -9,9 +9,11 @@
 
 int initUART();
 int setSerial();
+int sendCharSet(unsigned char *msg);
+int sendChar(unsigned char msg);
 int sendCharOdd(unsigned char msg);
 int sendCharEven(unsigned char msg);
-int sendPattern(unsigned char adr, unsigned char dat1, unsigned char dat2, unsigned char dat3);
+int sendPattern(unsigned char *dat);
 void signal_handler(int sig);
 void delay (unsigned int loops);
 void cwrotate(unsigned int time);
@@ -33,13 +35,16 @@ int keepgoing = 1;	// Set to 0 when ctrl-c is pressed
 * Main
 ****************************************************************/
 int main(){	
+	unsigned char testMsg[]={0xFF, 0x00, 0x03, 0x1D, 0x0C};
+
 	// Set the signal callback for Ctrl-C
 	signal(SIGINT, signal_handler);
 
 	initUART();
 	setSerial();
 	while(keepgoing){
-		sendCharEven(0x55);
+		sendCharSet(testMsg);
+		delay(1000);
 	}
 	return 0;
 }
@@ -83,9 +88,57 @@ int setSerial() {
 	Serial.c_iflag = 0;	//Clear all flags for input modes
 	Serial.c_oflag = 0;	//Clear all flags for output modes
 	Serial.c_lflag = 0;	//Clear all flags for local modes
-	Serial.c_cflag |= PARENB;	//Enable parity check
+	Serial.c_cflag &= ~PARENB;	//Enable parity check
 	Serial.c_cc[VMIN] = 0;
 	Serial.c_cc[VTIME] = 1;	// Timeout for 0.1 seconds
+	close(fd);
+
+	return 0;
+}
+
+/****************************************************************
+* Send a set of 5 characters without parity check
+****************************************************************/
+int sendCharSet(unsigned char *msg) {
+	struct termios Serial;
+//	int size = strlen(&msg);	//Note: This may cause error when msg==0!
+	char size = 5;
+	int fd;
+	if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0){
+		printf("Could not open ttyO1.\n");
+		return -1;
+	}	
+	if (tcgetattr(fd, &Serial) != 0){ // Obtain current terminal device settings
+		printf("Unable to retrieve port attributes.\n");
+		return -1;
+	}
+	Serial.c_cflag &= ~PARENB;	//Disable parity check
+	tcsetattr(fd, TCSANOW, &Serial); // Set the modified attributes
+	write(fd, msg, size);
+	close(fd);
+
+	return 0;
+}
+
+/****************************************************************
+* Send character without parity check
+****************************************************************/
+int sendChar(unsigned char msg) {
+	struct termios Serial;
+//	int size = strlen(&msg);	Note: This would cause error when msg==0!
+	char size = 1;
+	int fd;
+	if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0){
+		printf("Could not open ttyO1.\n");
+		return -1;
+	}	
+	if (tcgetattr(fd, &Serial) != 0){ // Obtain current terminal device settings
+		printf("Unable to retrieve port attributes.\n");
+		return -1;
+	}
+	Serial.c_cflag &= ~PARENB;	//Disable parity check
+	tcsetattr(fd, TCSANOW, &Serial); // Set the modified attributes
+	write(fd, &msg, size);
 	close(fd);
 
 	return 0;
@@ -143,12 +196,13 @@ int sendCharEven(unsigned char msg) {
 /****************************************************************
 * Send a certain pattern
 ****************************************************************/
-int sendPattern(unsigned char adr, unsigned char dat1, unsigned char dat2, unsigned char dat3)
+int sendPattern(unsigned char *dat)
 {
-	sendCharEven(adr);
-	sendCharOdd(dat1);
-	sendCharOdd(dat2);
-	sendCharOdd(dat3);
+	int i;
+	int arrayLength = sizeof(dat)/sizeof(unsigned char);
+	for (i = 0; i<arrayLength; i++) {
+		sendChar(dat[i]);
+	}
 }
 
 /****************************************************************
