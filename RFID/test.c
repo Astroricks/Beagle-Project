@@ -7,7 +7,7 @@
 #include <pthread.h>
 
 #define BAUDRATE B9600
-#define ARRAY_SIZE 32
+#define ARRAY_SIZE 16
 
 int initUART1_TXD();
 int initUART1_RXD();
@@ -15,6 +15,10 @@ int setSerial();
 int readCharSet();
 int sendCharSet(unsigned char *msg);
 void signal_handler(int sig);
+void rfidGetFirmware();
+void rfidSetTagProtocol();
+void rfidReadSingle();
+void rfidReadMultiple();
 
 int keepgoing = 1;	// Set to 0 when ctrl-c is pressed
 
@@ -34,7 +38,7 @@ void* receiveThread(void *arg)
 	while(1) 
 	{
     	printf("\n Trying to read something\n");
-		if(readCharSet() != 0){}
+		readCharSet();
 			//break;
 	}
 
@@ -45,7 +49,6 @@ void* receiveThread(void *arg)
 * Main
 ****************************************************************/
 int main(){	
-	unsigned char testMsg[]={0xFF, 0x00, 0x03, 0x1D, 0x0C};
 	int err;
 
 	// Set the signal callback for Ctrl-C
@@ -60,10 +63,13 @@ int main(){
     else
         printf("\n Thread created successfully\n");
 
+	sleep(1);
+	rfidSetTagProtocol();
 	while(keepgoing){
 		sleep(1);
         printf("\n Sending start\n");
-		sendCharSet(testMsg);
+		//rfidGetFirmware();
+		rfidReadSingle();
 		sleep(1);
 	}
 	return 0;
@@ -151,8 +157,8 @@ int setSerial() {
 	Serial.c_lflag = 0;	//Clear all flags for local modes
 	Serial.c_cflag |= CREAD | CS8;	//Enable receiver; 8-bit, no parity, 1 stop bit
 	Serial.c_cflag &= ~PARENB;	//Disable parity check
-	Serial.c_cc[VMIN] = 2;
-	Serial.c_cc[VTIME] = 10;	// Timeout for 0.1 * 2 seconds
+	Serial.c_cc[VMIN] = 1;
+	Serial.c_cc[VTIME] = 2;	// Timeout for 0.1 * 2 seconds
 	tcsetattr(fd, TCSANOW, &Serial); // Set the modified attributes
 	close(fd);
 
@@ -173,13 +179,12 @@ int readCharSet() {
 		printf("Could not open ttyO2.\n");
 		return -1;
 	}	
-	if (tcgetattr(fd, &Serial) != 0){ // Obtain current terminal device settings
-		printf("Unable to retrieve port attributes.\n");
-		return -1;
-	}
-	Serial.c_cflag &= ~PARENB;	//Disable parity check
-	tcsetattr(fd, TCSANOW, &Serial); // Set the modified attributes
-	usleep(50000);
+//	if (tcgetattr(fd, &Serial) != 0){ // Obtain current terminal device settings
+//		printf("Unable to retrieve port attributes.\n");
+//		return -1;
+//	}
+//	Serial.c_cflag &= ~PARENB;	//Disable parity check
+//	tcsetattr(fd, TCSANOW, &Serial); // Set the modified attributes
 	len = read(fd, byte_in, ARRAY_SIZE); //Read ttyO2 port, stores data into byte_in
 
 //	for(i = 0; i< ARRAY_SIZE; ) {
@@ -205,10 +210,9 @@ int readCharSet() {
 /****************************************************************
 * Send a set of 5 characters without parity check
 ****************************************************************/
-int sendCharSet(unsigned char *msg) {
+int sendCharSet(unsigned char *msg, char size) {
 	struct termios Serial;
 //	int size = strlen(&msg);	//Note: This may cause error when msg==0!
-	char size = 5;
 	int fd;
 	if ((fd = open("/dev/ttyO1", O_RDWR | O_NOCTTY)) < 0){
 		printf("Could not open ttyO1.\n");
@@ -229,9 +233,39 @@ int sendCharSet(unsigned char *msg) {
 * Signal_handler
 ****************************************************************/
 // Callback called when SIGINT is sent to the process (Ctrl-C)
-void signal_handler(int sig)
-{
+void signal_handler(int sig) {
 	printf( "Ctrl-C pressed, cleaning up and exiting..\n" );
 	keepgoing = 0;
 }
 
+/****************************************************************
+* Get Firmware Version (03h)
+*****************************************************************/
+void rfidGetFirmware() {
+	unsigned char msg[]={0xFF, 0x00, 0x03, 0x1D, 0x0C};
+	sendCharSet(msg, 5);
+}
+
+/****************************************************************
+* Set Tag Protocol (93h)
+*****************************************************************/
+void rfidSetTagProtocol() {
+	unsigned char msg[]={0xFF, 0x02, 0x93, 0x00, 0x05, 0x51, 0x7D};
+	sendCharSet(msg, 7);
+}
+/****************************************************************
+* Read Single
+*****************************************************************/
+void rfidReadSingle() {
+	unsigned char msg[]={0xFF, 0x02, 0x21, 0x03, 0xE8, 0xD5, 0x09};
+	sendCharSet(msg, 7);
+}
+
+
+/****************************************************************
+* Read Multiple
+*****************************************************************/
+void rfidReadMultiple() {
+	unsigned char msg[]={0xFF, 0x02, 0x22, 0x03, 0xE8, 0xE5, 0x6A};
+	sendCharSet(msg, 7);
+}
