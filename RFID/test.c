@@ -13,12 +13,15 @@ int initUART1_TXD();
 int initUART1_RXD();
 int setSerial();
 int readCharSet();
-int sendCharSet(unsigned char *msg);
+int sendCharSet(unsigned char *msg, char size);
 void signal_handler(int sig);
+
+void rfidBootFirmware();
 void rfidGetFirmware();
 void rfidSetTagProtocol();
 void rfidReadSingle();
 void rfidReadMultiple();
+void rfidSetAntenna();
 
 int keepgoing = 1;	// Set to 0 when ctrl-c is pressed
 
@@ -64,12 +67,14 @@ int main(){
         printf("\n Thread created successfully\n");
 
 	sleep(1);
+	rfidSetAntenna();
 	rfidSetTagProtocol();
 	while(keepgoing){
 		sleep(1);
         printf("\n Sending start\n");
 		//rfidGetFirmware();
-		rfidReadSingle();
+		//rfidReadSingle();
+		rfidReadMultiple();
 		sleep(1);
 	}
 	return 0;
@@ -253,17 +258,33 @@ void rfidSetTagProtocol() {
 	unsigned char msg[]={0xFF, 0x02, 0x93, 0x00, 0x05, 0x51, 0x7D};
 	sendCharSet(msg, 7);
 }
+
 /****************************************************************
-* Read Single
+* Set Region (97h)
+*****************************************************************/
+void rfidSetAntenna() {
+	unsigned char msg[]={0xFF, 0x01, 0x97, 0x01, 0x4B, 0xBC};
+	sendCharSet(msg, 6);
+}
+
+/****************************************************************
+* Set Antenna (91h)
+*****************************************************************/
+void rfidSetAntenna() {
+	unsigned char msg[]={0xFF, 0x02, 0x91, 0x01, 0x01, 0x70, 0x3B};
+	sendCharSet(msg, 7);
+}
+
+/****************************************************************
+* Read Single (21h)
 *****************************************************************/
 void rfidReadSingle() {
 	unsigned char msg[]={0xFF, 0x02, 0x21, 0x03, 0xE8, 0xD5, 0x09};
 	sendCharSet(msg, 7);
 }
 
-
 /****************************************************************
-* Read Multiple
+* Read Multiple (22h)
 *****************************************************************/
 void rfidReadMultiple() {
 	unsigned char msg[]={0xFF, 0x02, 0x22, 0x03, 0xE8, 0xE5, 0x6A};
